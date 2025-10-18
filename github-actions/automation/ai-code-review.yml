@@ -1,0 +1,262 @@
+name: AI Code Review
+
+# Trigger on pull requests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Required permissions
+permissions:
+  contents: read
+  pull-requests: write
+  models: read  # Access to GitHub Models API
+
+jobs:
+  ai-review:
+    name: AI-Powered Code Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history for better context
+      
+      - name: Get PR files
+        id: pr-files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Filter out large files and binaries
+            const relevantFiles = files.filter(file => 
+              file.additions + file.deletions < 500 && // Skip very large files
+              !file.filename.match(/\.(jpg|jpeg|png|gif|ico|svg|pdf|zip)$/i)
+            );
+            
+            core.setOutput('file-count', relevantFiles.length);
+            core.setOutput('files', JSON.stringify(relevantFiles));
+            return relevantFiles;
+      
+      - name: Get PR diff
+        id: pr-diff
+        run: |
+          gh pr diff ${{ github.event.pull_request.number }} > pr-diff.txt
+          echo "diff-size=$(wc -l < pr-diff.txt)" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: AI Code Review - Security
+        id: security-review
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            You are an expert security reviewer. Analyze the code changes for:
+            - SQL injection vulnerabilities
+            - XSS vulnerabilities
+            - Hardcoded secrets or credentials
+            - Insecure cryptography
+            - Authentication/authorization issues
+            - Input validation problems
+            - Path traversal risks
+            - Insecure dependencies
+            
+            Format your response as:
+            **Security Issues:** [NONE | FOUND]
+            
+            If issues found:
+            - **[SEVERITY]** [Issue description]
+              - File: [filename]
+              - Line: [line number]
+              - Risk: [description]
+              - Fix: [suggested fix]
+          prompt: |
+            Review these code changes for security issues:
+            
+            ${{ steps.pr-files.outputs.files }}
+            
+            Diff:
+            ```
+            $(cat pr-diff.txt)
+            ```
+      
+      - name: AI Code Review - Code Quality
+        id: quality-review
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            You are an expert code reviewer. Analyze the code changes for:
+            - Code complexity and maintainability
+            - DRY violations (repeated code)
+            - Performance concerns
+            - Error handling completeness
+            - Function length and responsibility
+            - Naming conventions
+            - Code readability
+            - Missing edge cases
+            
+            Format your response as bullet points:
+            - ✅ [Good practice found]
+            - ⚠️ [Warning or suggestion]
+            - ❌ [Problem that should be fixed]
+          prompt: |
+            Review these code changes for quality:
+            
+            Files changed: ${{ steps.pr-files.outputs.file-count }}
+            
+            ${{ steps.pr-files.outputs.files }}
+      
+      - name: AI Code Review - Tests
+        id: test-review
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            You are a test coverage expert. Analyze if:
+            - New code has corresponding tests
+            - Tests cover edge cases
+            - Tests are meaningful (not just for coverage)
+            - Test names are descriptive
+            - Mocks are used appropriately
+            
+            Format response as:
+            **Test Coverage:** [EXCELLENT | GOOD | NEEDS IMPROVEMENT | MISSING]
+            
+            Details:
+            - [observation]
+          prompt: |
+            Analyze test coverage for these changes:
+            
+            ${{ steps.pr-files.outputs.files }}
+      
+      - name: Generate summary review
+        id: generate-summary
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            You are a senior engineer providing a final code review summary.
+            Synthesize all review findings into a clear, actionable summary.
+            
+            Format:
+            ## AI Code Review Summary
+            
+            **Overall Assessment:** [APPROVE | REQUEST CHANGES | COMMENT]
+            
+            ### Security
+            [summary]
+            
+            ### Code Quality
+            [summary]
+            
+            ### Testing
+            [summary]
+            
+            ### Recommendations
+            - [action item]
+            
+            Be constructive and specific. Prioritize critical issues.
+          prompt: |
+            Security findings:
+            ${{ steps.security-review.outputs.result }}
+            
+            Quality findings:
+            ${{ steps.quality-review.outputs.result }}
+            
+            Test findings:
+            ${{ steps.test-review.outputs.result }}
+      
+      - name: Post review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `${{ steps.generate-summary.outputs.result }}`;
+            
+            const comment = `
+            # 🤖 AI Code Review
+            
+            ${summary}
+            
+            ---
+            
+            <details>
+            <summary>📊 Review Details</summary>
+            
+            ## Security Analysis
+            ${{ steps.security-review.outputs.result }}
+            
+            ## Code Quality
+            ${{ steps.quality-review.outputs.result }}
+            
+            ## Test Coverage
+            ${{ steps.test-review.outputs.result }}
+            
+            </details>
+            
+            ---
+            
+            *This is an automated AI review. Human review is still required.*
+            *Powered by GitHub Models API*
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Update PR labels
+        if: contains(steps.security-review.outputs.result, 'CRITICAL')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['security-review-needed']
+            });
+      
+      - name: Add review summary to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const assessment = `${{ steps.generate-summary.outputs.result }}`;
+            
+            // Determine if we should block merge
+            const shouldBlock = assessment.includes('CRITICAL') || 
+                               assessment.includes('REQUEST CHANGES');
+            
+            if (shouldBlock) {
+              core.setFailed('Critical issues found in AI review');
+            }
+
+# Configuration Tips:
+# 
+# 1. Model Selection:
+#    - gpt-4-turbo: Best quality, slower
+#    - gpt-3.5-turbo: Faster, good for simple reviews
+#    - mistral-ai/ministral-3b: Fastest, basic checks
+# 
+# 2. Cost Management:
+#    - Add file size limits
+#    - Skip certain file types
+#    - Cache results for unchanged files
+# 
+# 3. Customization:
+#    - Adjust prompts for your tech stack
+#    - Add language-specific checks
+#    - Integrate with your coding standards
+# 
+# 4. Integration:
+#    - Combine with human code review
+#    - Use as first-pass filter
+#    - Require human approval for merge

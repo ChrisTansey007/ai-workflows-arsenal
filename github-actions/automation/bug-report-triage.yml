@@ -1,0 +1,395 @@
+name: Bug Report Triage
+
+# Trigger when new issues are opened
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  models: read
+
+jobs:
+  triage-bug-report:
+    name: AI Bug Triage
+    runs-on: ubuntu-latest
+    # Only run if issue has "bug" label or title contains "bug"
+    if: |
+      contains(github.event.issue.labels.*.name, 'bug') ||
+      contains(lower(github.event.issue.title), 'bug')
+    
+    steps:
+      - name: Fetch issue details
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            core.setOutput('title', issue.data.title);
+            core.setOutput('body', issue.data.body);
+            core.setOutput('author', issue.data.user.login);
+            return issue.data;
+      
+      - name: Check for reproduction steps
+        id: check-reproduction
+        uses: actions/ai-inference@v1
+        with:
+          model: mistral-ai/ministral-3b
+          system-prompt: |
+            Analyze if a bug report contains adequate reproduction steps.
+            
+            A good bug report includes:
+            1. Clear steps to reproduce (numbered list)
+            2. Expected behavior
+            3. Actual behavior
+            4. Environment details (browser, OS, version)
+            
+            Return ONLY one of:
+            - COMPLETE: All information present
+            - MISSING_STEPS: Steps to reproduce missing or unclear
+            - MISSING_EXPECTED: Expected behavior not described
+            - MISSING_ENVIRONMENT: Environment details missing
+            - INCOMPLETE: Multiple pieces missing
+          prompt: |
+            Analyze this bug report:
+            
+            Title: ${{ steps.issue.outputs.title }}
+            
+            Body:
+            ${{ steps.issue.outputs.body }}
+      
+      - name: Determine severity
+        id: severity
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            Classify bug severity based on impact and scope.
+            
+            Severity Levels:
+            - CRITICAL: Security issue, data loss, complete system failure
+            - HIGH: Core functionality broken, affects many users
+            - MEDIUM: Feature broken, workaround exists
+            - LOW: Minor issue, cosmetic, edge case
+            
+            Return only the severity level.
+          prompt: |
+            Classify the severity of this bug:
+            
+            Title: ${{ steps.issue.outputs.title }}
+            Body: ${{ steps.issue.outputs.body }}
+      
+      - name: Suggest priority
+        id: priority
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            Suggest a priority based on severity, impact, and urgency.
+            
+            Priority Levels:
+            - P0: Fix immediately (critical bugs, security)
+            - P1: Fix in next release (high impact)
+            - P2: Fix soon (medium impact)
+            - P3: Fix when possible (low impact)
+            
+            Return only the priority level with brief reasoning.
+          prompt: |
+            Severity: ${{ steps.severity.outputs.result }}
+            
+            Bug details:
+            Title: ${{ steps.issue.outputs.title }}
+            Body: ${{ steps.issue.outputs.body }}
+      
+      - name: Identify affected component
+        id: component
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            Identify which component/area of the codebase is affected.
+            
+            Common components:
+            - authentication
+            - ui
+            - api
+            - database
+            - frontend
+            - backend
+            - mobile
+            - web
+            - infrastructure
+            - documentation
+            
+            Return the most relevant component (lowercase, one word).
+          prompt: |
+            What component is affected?
+            
+            ${{ steps.issue.outputs.title }}
+            ${{ steps.issue.outputs.body }}
+      
+      - name: Generate response for incomplete reports
+        if: steps.check-reproduction.outputs.result != 'COMPLETE'
+        id: incomplete-response
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            Generate a friendly comment asking for missing information.
+            
+            Be polite and specific about what's needed.
+            Use a supportive tone.
+            Thank the reporter for their submission.
+            Provide a template if helpful.
+          prompt: |
+            The bug report is missing: ${{ steps.check-reproduction.outputs.result }}
+            
+            Bug title: ${{ steps.issue.outputs.title }}
+            
+            Create a response asking for this information.
+      
+      - name: Comment on incomplete report
+        if: steps.check-reproduction.outputs.result != 'COMPLETE'
+        uses: actions/github-script@v7
+        env:
+          AI_RESPONSE: ${{ steps.incomplete-response.outputs.result }}
+        with:
+          script: |
+            const response = process.env.AI_RESPONSE;
+            
+            const comment = `
+            ## 🐛 Bug Report Needs More Information
+            
+            ${response}
+            
+            ### What we need:
+            
+            **Steps to Reproduce:**
+            1. Step 1
+            2. Step 2
+            3. Step 3
+            
+            **Expected Behavior:**
+            [What should happen]
+            
+            **Actual Behavior:**
+            [What actually happens]
+            
+            **Environment:**
+            - OS: [e.g., Windows 11]
+            - Browser: [e.g., Chrome 120]
+            - Version: [e.g., v1.2.3]
+            
+            ---
+            
+            *Automated triage by AI*
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Add labels
+        uses: actions/github-script@v7
+        env:
+          SEVERITY: ${{ steps.severity.outputs.result }}
+          COMPONENT: ${{ steps.component.outputs.result }}
+          COMPLETENESS: ${{ steps.check-reproduction.outputs.result }}
+        with:
+          script: |
+            const severity = process.env.SEVERITY.trim().toLowerCase();
+            const component = process.env.COMPONENT.trim().toLowerCase();
+            const completeness = process.env.COMPLETENESS;
+            
+            const labels = ['bug'];
+            
+            // Add severity label
+            const severityMap = {
+              'critical': 'severity: critical',
+              'high': 'severity: high',
+              'medium': 'severity: medium',
+              'low': 'severity: low'
+            };
+            if (severityMap[severity]) {
+              labels.push(severityMap[severity]);
+            }
+            
+            // Add component label
+            labels.push(`component: ${component}`);
+            
+            // Add status label
+            if (completeness !== 'COMPLETE') {
+              labels.push('needs-information');
+            } else {
+              labels.push('needs-triage');
+            }
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: labels
+            });
+      
+      - name: Generate triage summary
+        if: steps.check-reproduction.outputs.result == 'COMPLETE'
+        id: triage-summary
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            Create a concise triage summary for the development team.
+            
+            Include:
+            1. Quick description of the issue
+            2. Recommended next steps
+            3. Potential areas to investigate
+            4. Similar issues (if patterns recognized)
+            
+            Be specific and actionable.
+          prompt: |
+            Create triage summary for:
+            
+            Title: ${{ steps.issue.outputs.title }}
+            Body: ${{ steps.issue.outputs.body }}
+            Severity: ${{ steps.severity.outputs.result }}
+            Component: ${{ steps.component.outputs.result }}
+      
+      - name: Post triage summary
+        if: steps.check-reproduction.outputs.result == 'COMPLETE'
+        uses: actions/github-script@v7
+        env:
+          TRIAGE_SUMMARY: ${{ steps.triage-summary.outputs.result }}
+          SEVERITY: ${{ steps.severity.outputs.result }}
+          PRIORITY: ${{ steps.priority.outputs.result }}
+          COMPONENT: ${{ steps.component.outputs.result }}
+        with:
+          script: |
+            const summary = process.env.TRIAGE_SUMMARY;
+            const severity = process.env.SEVERITY;
+            const priority = process.env.PRIORITY;
+            const component = process.env.COMPONENT;
+            
+            const comment = `
+            ## 🔍 Automated Triage Complete
+            
+            **Severity:** ${severity}
+            **Priority:** ${priority}
+            **Component:** ${component}
+            
+            ### Analysis
+            
+            ${summary}
+            
+            ### Next Steps for Maintainers
+            
+            - [ ] Verify reproduction steps
+            - [ ] Assign to component owner
+            - [ ] Add to sprint planning
+            - [ ] Update priority if needed
+            
+            ---
+            
+            *This is an automated triage. Please review and adjust as needed.*
+            *Powered by GitHub Models API*
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Assign to team (if critical)
+        if: steps.severity.outputs.result == 'CRITICAL'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Add to project board or assign to on-call
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              assignees: ['on-call-engineer'] // Replace with actual username
+            });
+            
+            // Optional: Create Slack notification
+            // or PagerDuty alert for critical bugs
+      
+      - name: Create duplicate check
+        id: check-duplicates
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            Based on the bug description, suggest search terms to find potential duplicates.
+            Return 3-5 search terms, comma-separated.
+          prompt: |
+            Bug: ${{ steps.issue.outputs.title }}
+            Description: ${{ steps.issue.outputs.body }}
+      
+      - name: Search for duplicates
+        uses: actions/github-script@v7
+        env:
+          SEARCH_TERMS: ${{ steps.check-duplicates.outputs.result }}
+        with:
+          script: |
+            const terms = process.env.SEARCH_TERMS.split(',').map(t => t.trim());
+            
+            for (const term of terms.slice(0, 3)) {
+              const { data: results } = await github.rest.search.issuesAndPullRequests({
+                q: `${term} repo:${context.repo.owner}/${context.repo.repo} is:issue state:open`,
+                per_page: 5
+              });
+              
+              if (results.total_count > 0) {
+                const links = results.items
+                  .filter(item => item.number !== context.issue.number)
+                  .map(item => `- #${item.number}: ${item.title}`)
+                  .join('\n');
+                
+                if (links) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.issue.number,
+                    body: `## 🔍 Possible Related Issues\n\n${links}\n\n*Please check if this is a duplicate.*`
+                  });
+                  break;
+                }
+              }
+            }
+
+# Configuration:
+# 
+# 1. Required Labels:
+#    Create these labels in your repository:
+#    - severity: critical (red)
+#    - severity: high (orange)
+#    - severity: medium (yellow)
+#    - severity: low (green)
+#    - needs-information (gray)
+#    - needs-triage (purple)
+#    - component: * (various colors)
+# 
+# 2. Customization:
+#    - Adjust severity classification logic
+#    - Modify component list for your codebase
+#    - Change automation thresholds
+#    - Add team-specific routing
+# 
+# 3. Integration:
+#    - Connect to project boards
+#    - Add Slack notifications
+#    - Integrate with ticketing system
+#    - Create incident reports for critical bugs

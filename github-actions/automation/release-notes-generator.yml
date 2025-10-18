@@ -1,0 +1,309 @@
+name: Auto Generate Release Notes
+
+# Trigger when PR is merged to main
+on:
+  pull_request:
+    types: [closed]
+    branches: [main, master]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  models: read
+
+jobs:
+  generate-release-notes:
+    name: Generate Release Notes
+    # Only run if PR was actually merged
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Get PR details
+        id: pr-details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // Get PR files
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            
+            // Get PR reviews
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            
+            // Get PR comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number
+            });
+            
+            const prData = {
+              number: pr.number,
+              title: pr.title,
+              body: pr.body,
+              author: pr.user.login,
+              labels: pr.labels.map(l => l.name),
+              files: files.map(f => ({
+                filename: f.filename,
+                status: f.status,
+                additions: f.additions,
+                deletions: f.deletions
+              })),
+              reviewers: [...new Set(reviews.map(r => r.user.login))],
+              merged_by: pr.merged_by.login,
+              merged_at: pr.merged_at
+            };
+            
+            core.setOutput('pr-data', JSON.stringify(prData));
+            return prData;
+      
+      - name: Generate changelog entry with AI
+        id: generate-changelog
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            You are a technical writer creating changelog entries.
+            Generate a single, clear, user-facing changelog entry that:
+            
+            1. Focuses on user impact (not implementation details)
+            2. Uses active voice and present tense
+            3. Starts with the type: feat:, fix:, docs:, perf:, etc.
+            4. Is concise (one line, max 100 characters)
+            5. Avoids technical jargon
+            6. Highlights the benefit to users
+            
+            Examples:
+            - feat: add dark mode support for better readability
+            - fix: resolve crash when uploading large files
+            - perf: improve page load time by 40%
+            - docs: add API authentication examples
+            
+            Return ONLY the changelog line, nothing else.
+          prompt: |
+            Create a changelog entry for this merged pull request:
+            
+            ${{ steps.pr-details.outputs.pr-data }}
+      
+      - name: Determine change category
+        id: categorize
+        uses: actions/ai-inference@v1
+        with:
+          model: mistral-ai/ministral-3b
+          system-prompt: |
+            Categorize the change into ONE category.
+            Return only the category name, nothing else.
+            
+            Categories:
+            - Features (new functionality)
+            - Bug Fixes (fixes issues)
+            - Performance (speed/efficiency improvements)
+            - Documentation (docs changes)
+            - Security (security improvements)
+            - Dependencies (dependency updates)
+            - Refactoring (code improvements, no behavior change)
+            - Breaking Changes (incompatible changes)
+          prompt: |
+            Categorize this change:
+            ${{ steps.pr-details.outputs.pr-data }}
+      
+      - name: Find or create release issue
+        id: release-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Look for existing release notes issue
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'release-notes',
+              state: 'open'
+            });
+            
+            let releaseIssue;
+            
+            if (issues.length > 0) {
+              // Use existing issue
+              releaseIssue = issues[0];
+            } else {
+              // Create new issue for next release
+              const { data: newIssue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '📝 Next Release Changelog',
+                body: `# Changelog for Next Release\n\nAutomatically generated from merged PRs.\n\n## Features\n\n## Bug Fixes\n\n## Performance\n\n## Documentation\n\n## Security\n\n## Dependencies\n\n## Refactoring\n\n## Breaking Changes\n`,
+                labels: ['release-notes']
+              });
+              releaseIssue = newIssue;
+            }
+            
+            core.setOutput('issue-number', releaseIssue.number);
+            core.setOutput('issue-body', releaseIssue.body);
+            return releaseIssue.number;
+      
+      - name: Append to release notes
+        uses: actions/github-script@v7
+        env:
+          CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.result }}
+          CATEGORY: ${{ steps.categorize.outputs.result }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        with:
+          script: |
+            const issueBody = `${{ steps.release-issue.outputs.issue-body }}`;
+            const category = process.env.CATEGORY.trim();
+            const entry = process.env.CHANGELOG_ENTRY.trim();
+            const prNumber = process.env.PR_NUMBER;
+            const author = process.env.PR_AUTHOR;
+            
+            // Format the changelog line
+            const changelogLine = `- ${entry} (#${prNumber}) @${author}`;
+            
+            // Find the category section and append
+            const categoryMap = {
+              'Features': '## Features',
+              'Bug Fixes': '## Bug Fixes',
+              'Performance': '## Performance',
+              'Documentation': '## Documentation',
+              'Security': '## Security',
+              'Dependencies': '## Dependencies',
+              'Refactoring': '## Refactoring',
+              'Breaking Changes': '## Breaking Changes'
+            };
+            
+            const sectionHeader = categoryMap[category] || '## Features';
+            const sectionIndex = issueBody.indexOf(sectionHeader);
+            
+            if (sectionIndex !== -1) {
+              const nextSectionIndex = issueBody.indexOf('\n##', sectionIndex + sectionHeader.length);
+              const insertPosition = nextSectionIndex !== -1 ? nextSectionIndex : issueBody.length;
+              
+              const newBody = 
+                issueBody.substring(0, insertPosition) +
+                '\n' + changelogLine +
+                issueBody.substring(insertPosition);
+              
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.release-issue.outputs.issue-number }},
+                body: newBody
+              });
+            }
+      
+      - name: Add comment to merged PR
+        uses: actions/github-script@v7
+        env:
+          CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.result }}
+          CATEGORY: ${{ steps.categorize.outputs.result }}
+        with:
+          script: |
+            const entry = process.env.CHANGELOG_ENTRY;
+            const category = process.env.CATEGORY;
+            const releaseIssue = ${{ steps.release-issue.outputs.issue-number }};
+            
+            const comment = `
+            ## 📝 Release Notes Generated
+            
+            **Category:** ${category}
+            **Changelog:** ${entry}
+            
+            This change has been added to the [Next Release Changelog](#${releaseIssue}).
+            
+            ---
+            
+            *Automatically generated by AI*
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Generate full release notes (optional)
+        if: contains(github.event.pull_request.labels.*.name, 'release')
+        id: full-notes
+        uses: actions/ai-inference@v1
+        with:
+          model: gpt-4-turbo
+          system-prompt: |
+            You are writing release notes for a software release.
+            Create comprehensive, user-friendly release notes that:
+            
+            1. Start with a brief overview of the release
+            2. Highlight major features and improvements
+            3. List bug fixes
+            4. Note any breaking changes
+            5. Include upgrade instructions if needed
+            6. Thank contributors
+            
+            Use clear, non-technical language where possible.
+            Format in Markdown.
+          prompt: |
+            Create full release notes from this changelog:
+            
+            ${{ steps.release-issue.outputs.issue-body }}
+      
+      - name: Create GitHub Release (if release PR)
+        if: contains(github.event.pull_request.labels.*.name, 'release')
+        uses: actions/github-script@v7
+        env:
+          RELEASE_NOTES: ${{ steps.full-notes.outputs.result }}
+        with:
+          script: |
+            // Extract version from PR title or use date-based version
+            const prTitle = context.payload.pull_request.title;
+            const versionMatch = prTitle.match(/v?\d+\.\d+\.\d+/);
+            const version = versionMatch ? versionMatch[0] : `v${new Date().toISOString().split('T')[0]}`;
+            
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: version,
+              name: version,
+              body: process.env.RELEASE_NOTES,
+              draft: false,
+              prerelease: false
+            });
+            
+            core.setOutput('release-url', release.data.html_url);
+
+# Usage Instructions:
+# 
+# 1. Setup:
+#    - Create a label "release-notes" in your repo
+#    - Ensure GitHub Models API is enabled
+# 
+# 2. How it works:
+#    - Runs when PR is merged to main
+#    - Generates changelog entry with AI
+#    - Appends to "Next Release Changelog" issue
+#    - Creates release if PR has "release" label
+# 
+# 3. Customization:
+#    - Adjust categories to match your workflow
+#    - Modify prompts for your style
+#    - Change release version format
+#    - Add more metadata to changelog
+# 
+# 4. Best Practices:
+#    - Review AI-generated entries
+#    - Edit release notes before publishing
+#    - Keep changelog issue pinned
+#    - Close and create new issue after each release
