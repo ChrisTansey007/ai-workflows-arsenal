@@ -423,4 +423,23 @@ user.password = await bcrypt.hash(req.body.password, 10);
 
 ---
 
+## 🔗 Related Arsenal Items
+
+### Recommended Pairings
+
+**💭 Memories:**
+- [Code Review Standards Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/team-workflows/code-review-standards-memory.md) - Team code review process and checklist
+- [Next.js Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/project-types/nextjs-app-router-memory.md) - Frontend standards to review against
+- [FastAPI Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/project-types/fastapi-memory.md) - Backend standards to review against
+
+**⚙️ Rules:**
+- [Next.js App Router Rule](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/by-framework/nextjs-app-router.md) - Next.js-specific review criteria
+- [FastAPI Python Rule](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/by-framework/fastapi-python.md) - FastAPI-specific review criteria
+
+**🔗 Complete Examples:**
+- [Team Setup](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/team-setup) - Code review workflow in team context
+- [Solo Developer](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/solo-developer) - Self-review workflow
+
+---
+
 **This workflow catches issues early and improves code quality before human review!**

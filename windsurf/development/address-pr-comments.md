@@ -13,7 +13,19 @@ version: 1
 
 ## Description
 
-This workflow helps you efficiently address PR comments by fetching all feedback, analyzing the requested changes, and implementing them systematically.
+This workflow helps you efficiently address all PR feedback in one go!
+
+## 🔗 Related Arsenal Items
+
+**💭 Memories:**
+- [Code Review Standards Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/team-workflows/code-review-standards-memory.md) - How to respond to feedback
+
+**🔄 Workflows:**
+- [Code Review Assistant](./code-review-assistant.md) - Review changes before responding
+- [Run Tests and Fix](./run-tests-and-fix.md) - Ensure changes don't break tests
+
+**🔗 Examples:**
+- [Team Setup](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/team-setup) - PR feedback workflow in team context
 
 ## Use Case
 

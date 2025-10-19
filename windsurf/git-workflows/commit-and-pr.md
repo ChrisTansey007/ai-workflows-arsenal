@@ -499,4 +499,19 @@ git push --force-with-lease
 
 ---
 
+## 🔗 Related Arsenal Items
+
+**💭 Memories:**
+- [Code Review Standards Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/team-workflows/code-review-standards-memory.md) - PR requirements and conventions
+
+**⚙️ Rules:**
+- [Next.js Rule](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/by-framework/nextjs-app-router.md) - Framework-specific commit patterns
+- [FastAPI Rule](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/by-framework/fastapi-python.md) - Backend commit conventions
+
+**🔗 Examples:**
+- [Team Setup](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/team-setup) - Team PR workflow
+- [Solo Developer](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/solo-developer) - Solo PR workflow
+
+---
+
 **This workflow ensures consistent, well-documented commits and PRs!**

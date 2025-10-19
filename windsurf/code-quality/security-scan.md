@@ -511,4 +511,18 @@ npm audit --audit-level=high
 
 ---
 
+## 🔗 Related Arsenal Items
+
+**💭 Memories:**
+- [FastAPI Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/project-types/fastapi-memory.md) - Security best practices for APIs
+- [Next.js Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/project-types/nextjs-app-router-memory.md) - Frontend security patterns
+
+**📝 Prompts:**
+- [Security Agent](https://github.com/ChrisTansey007/prompt-arsenal/blob/main/custom-agents/specialized-agents/security-agent.md) - Specialized security audit agent
+
+**🔗 Examples:**
+- [API Service](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/api-service) - Security workflow for APIs
+
+---
+
 **This workflow protects your codebase from security vulnerabilities!**

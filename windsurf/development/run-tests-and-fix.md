@@ -370,4 +370,19 @@ Timeout after 5000ms
 
 ---
 
+## 🔗 Related Arsenal Items
+
+**💭 Memories:**
+- [Next.js Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/project-types/nextjs-app-router-memory.md) - Testing setup and conventions
+- [FastAPI Memory](https://github.com/ChrisTansey007/windsurf-memories-arsenal/blob/main/project-types/fastapi-memory.md) - Pytest configuration and patterns
+
+**⚙️ Rules:**
+- [Next.js Rule](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/by-framework/nextjs-app-router.md) - Test patterns and best practices
+- [FastAPI Rule](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/by-framework/fastapi-python.md) - Async testing patterns
+
+**🔗 Examples:**
+- [Full-Stack App](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/fullstack-nextjs-app) - Testing workflow in action
+
+---
+
 **This workflow ensures your test suite stays green and catches issues early!**
