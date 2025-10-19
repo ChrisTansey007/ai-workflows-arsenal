@@ -59,13 +59,14 @@ cp github-actions/automation/ai-code-review.yml .github/workflows/
 
 ## 🏗️ What's Inside
 
-### Windsurf Workflows (6+)
+### Windsurf Workflows (7+)
 **Multi-step AI guidance in Markdown**
 
 - ✅ **Development:** PR reviews, code refactoring, test generation
 - ✅ **Git Operations:** Commit formatting, branch management, changelog
 - ✅ **Code Quality:** Linting, security scans, dependency audits
 - ✅ **Project Organization:** Repository file organization, cleanup automation
+- ✅ **Debugging:** Next.js compilation errors, systematic troubleshooting
 - ✅ **Deployment:** Multi-environment deploys, health checks, rollbacks
 
 **Format:** `.md` files in `.windsurf/workflows/`  
