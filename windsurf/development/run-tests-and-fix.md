@@ -1,3 +1,12 @@
+---
+id: wkf.run-tests-and-fix
+type: workflow
+title: Run Tests and Fix
+tags: [testing, debugging, automation, quality, tdd]
+summary: Automatically runs test suite, identifies failures, analyzes error messages, and attempts to fix issues automatically.
+version: 1
+---
+
 # Run Tests and Fix
 
 **Automatically run tests, identify failures, and fix them**

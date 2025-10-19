@@ -1,3 +1,12 @@
+---
+id: wkf.security-scan
+type: workflow
+title: Security Scan
+tags: [security, vulnerability, scanning, audit, compliance]
+summary: Comprehensive security scanning of codebase, dependencies, and configurations to identify vulnerabilities and suggest automated remediation.
+version: 1
+---
+
 # Security Scan
 
 **Automated security vulnerability scanning and remediation**

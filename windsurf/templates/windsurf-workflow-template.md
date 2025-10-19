@@ -1,3 +1,12 @@
+---
+id: wkf.template
+type: workflow
+title: Workflow Template
+tags: [template, documentation, howto]
+summary: Template for creating new Windsurf workflows with standardized structure and front-matter.
+version: 1
+---
+
 # [Workflow Name]
 
 **[One-line description of what this workflow does]**

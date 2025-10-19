@@ -1,3 +1,12 @@
+---
+id: wkf.address-pr-comments
+type: workflow
+title: Address PR Comments
+tags: [pr, code-review, feedback, git, collaboration]
+summary: Automatically process and implement Pull Request feedback by fetching comments, analyzing changes, and implementing them systematically.
+version: 1
+---
+
 # Address PR Comments
 
 **Automatically process and implement Pull Request feedback**

@@ -1,3 +1,12 @@
+---
+id: wkf.code-review-assistant
+type: workflow
+title: Code Review Assistant
+tags: [code-review, quality, security, best-practices, automation]
+summary: AI-powered code review that checks quality, security, performance, and best practices before submitting for human review.
+version: 1
+---
+
 # Code Review Assistant
 
 **AI-powered code review before submitting for human review**

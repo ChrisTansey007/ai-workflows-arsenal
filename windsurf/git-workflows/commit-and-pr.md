@@ -1,3 +1,12 @@
+---
+id: wkf.commit-and-pr
+type: workflow
+title: Commit and Create PR
+tags: [git, pr, commit, workflow, automation]
+summary: Creates standardized git commits with conventional commit messages and generates comprehensive pull requests with proper descriptions.
+version: 1
+---
+
 # Commit and Create PR
 
 **Standardized git commits and pull request creation**
