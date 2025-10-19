@@ -538,4 +538,31 @@ After organizing:
 
 ---
 
+## 🔗 Related Arsenal Items
+
+### Recommended Pairings
+
+**⚙️ Rule:**
+- [Repository Organization Principles](https://github.com/ChrisTansey007/ai-rules-arsenal/blob/main/windsurf/organization/repo-org-principles.md) - 7 core principles this workflow implements
+
+**🤖 Script:**
+- [Safe File Migration Script](https://github.com/ChrisTansey007/ai-scripts-arsenal/tree/main/scripts/repository-management/migrate-files) - PowerShell script used in Phase 2 & 3
+
+**🔗 Complete Example:**
+- [Repository Organization Example](https://github.com/ChrisTansey007/arsenal-integration-hub/tree/main/examples/repo-organization) - See this workflow in action
+
+### Quick Setup
+
+```bash
+# Install all Arsenal repos
+curl -sSL https://raw.githubusercontent.com/ChrisTansey007/arsenal-integration-hub/main/scripts/install-all.sh | bash
+
+# Get this workflow + rule + script
+cp ~/arsenals/ai-workflows-arsenal/windsurf/project-organization/repo-organize-files.md .windsurf/workflows/
+cp ~/arsenals/ai-rules-arsenal/windsurf/organization/repo-org-principles.md .windsurf/rules/
+cp ~/arsenals/ai-scripts-arsenal/scripts/repository-management/migrate-files/migrate-files-safe.ps1 ./scripts/
+```
+
+---
+
 **Result: Organized, maintainable repository with 80% reduction in search time and clear onboarding path for new team members.** 🎉
